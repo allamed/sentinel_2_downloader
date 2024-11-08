@@ -43,7 +43,6 @@ Cet outil permet d'automatiser le téléchargement d'images satellites Sentinel-
 
 ```bash
 git clone https://github.com/allamed/sentinel_2_downloader
-cd telecharger-sentinel-maroc
 pip install -r requirements.txt
 ```
 
