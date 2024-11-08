@@ -12,8 +12,7 @@ Un outil automatisé pour télécharger des images satellites Sentinel-2 couvran
 - [Configuration](#configuration)
 - [Structure des données](#structure-des-données)
 - [Sécurité](#sécurité)
-- [Contribution](#contribution)
-- [Licence](#licence)
+
 
 ## 🎯 Aperçu
 
@@ -43,7 +42,7 @@ Cet outil permet d'automatiser le téléchargement d'images satellites Sentinel-
 ## 💻 Installation
 
 ```bash
-git clone [URL_DU_REPO]
+git clone https://github.com/allamed/sentinel_2_downloader
 cd telecharger-sentinel-maroc
 pip install -r requirements.txt
 ```
@@ -88,19 +87,3 @@ morocco_sentinel_data/
 - Vérification des téléchargements
 - Création automatique des dossiers
 
-## 🤝 Contribution
-
-Les contributions sont les bienvenues ! N'hésitez pas à :
-1. Fork le projet
-2. Créer une branche (`git checkout -b feature/AmeliorationIncroyable`)
-3. Commit vos changements (`git commit -m 'Ajout de fonctionnalité'`)
-4. Push vers la branche (`git push origin feature/AmeliorationIncroyable`)
-5. Ouvrir une Pull Request
-
-## 📄 Licence
-
-[Insérer la licence]
-
----
-
-Développé avec ❤️ pour la communauté de télédétection marocaine
