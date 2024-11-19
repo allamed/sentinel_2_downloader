@@ -172,26 +172,32 @@ class MoroccoSentinelDownloader:
         total_products = 0
         downloaded_products = 0
         
-        # Process each region
+        # First, search and collect products for all regions
+        products_by_region = {}
+        print("\nSearching for products in all regions:")
         for region in regions:
-            logger.info(f"\nProcessing region: {region}")
-            print(f"\nProcessing region: {region}")
-            
-            region_dir = output_base_dir / region
-            region_dir.mkdir(exist_ok=True)
-            
-            # Search for products
             products = self.search_scenes(
                 region,
                 start_date,
                 end_date,
                 max_cloud_percentage
             )
+            products_by_region[region] = products
+            print(f"- {region}: {len(products)} products found")
+            total_products += len(products)
+        
+        print(f"\nTotal products found across all regions: {total_products}")
+        print("\nStarting downloads...")
+        
+        # Process each region
+        for region, products in products_by_region.items():
+            logger.info(f"\nProcessing region: {region}")
+            print(f"\nProcessing region: {region}")
+            
+            region_dir = output_base_dir / region
+            region_dir.mkdir(exist_ok=True)
             
             if products:
-                total_products += len(products)
-                print(f"Found {len(products)} products for {region}")
-                
                 # Sort products by cloud cover
                 sorted_products = sorted(products, key=lambda x: self.get_cloud_cover(x))
                 
