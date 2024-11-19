@@ -51,26 +51,40 @@ class MoroccoSentinelDownloader:
             raise Exception(f"Authentication failed: {response.text}")
 
     def create_search_polygon(self, region):
-        """Create a proper WKT polygon for the search area"""
-        region_bounds = {
-            'north': [
-                (-9.5, 35.922618), (-0.998429, 35.922618),
-                (-0.998429, 32.0), (-9.5, 32.0), (-9.5, 35.922618)
-            ],
-            'central': [
-                (-13.168555, 32.0), (-0.998429, 32.0),
-                (-0.998429, 28.0), (-13.168555, 28.0), (-13.168555, 32.0)
-            ],
-            'south': [
-                (-17.10, 28.0), (-8.5, 28.0),
-                (-8.5, 20.70), (-17.10, 20.70), (-17.10, 28.0)
-            ]
+        """Create search polygon for region"""
+        # Élargir les zones de recherche pour le Maroc
+        regions = {
+            'north': {
+                'min_lon': -7.0,  # Élargi vers l'ouest
+                'max_lon': -1.0,  # Élargi vers l'est
+                'min_lat': 32.0,  # Ajusté pour le nord du Maroc
+                'max_lat': 36.0
+            },
+            'central': {
+                'min_lon': -13.0,  # Élargi pour inclure la côte
+                'max_lon': -2.0,
+                'min_lat': 29.0,
+                'max_lat': 32.0
+            },
+            'south': {
+                'min_lon': -13.0,
+                'max_lon': -1.0,
+                'min_lat': 26.0,  # Ajusté pour le sud du Maroc
+                'max_lat': 29.0
+            }
         }
         
-        if region in region_bounds:
-            polygon = Polygon(region_bounds[region])
-            return polygon.wkt
-        return None
+        if region not in regions:
+            return None
+        
+        bounds = regions[region]
+        polygon = f"POLYGON(({bounds['min_lon']} {bounds['min_lat']}, "\
+                  f"{bounds['max_lon']} {bounds['min_lat']}, "\
+                  f"{bounds['max_lon']} {bounds['max_lat']}, "\
+                  f"{bounds['min_lon']} {bounds['max_lat']}, "\
+                  f"{bounds['min_lon']} {bounds['min_lat']}))"
+        
+        return polygon
 
     def search_scenes(self, region, start_date, end_date, max_cloud_percentage=30):
         """Search for scenes using CDSE API"""
@@ -84,23 +98,26 @@ class MoroccoSentinelDownloader:
                     logger.error(f"Invalid region: {region}")
                     return []
 
-                logger.info(f"Searching for scenes in {region} from {start_date} to {end_date}")
+                logger.info(f"Searching for L2A scenes in {region} from {start_date} to {end_date}")
                 
                 # Format dates
                 start_str = start_date.strftime("%Y-%m-%dT%H:%M:%SZ")
                 end_str = end_date.strftime("%Y-%m-%dT%H:%M:%SZ")
                 
-                # Construct query with $expand to get cloud coverage
+                # Simplified query with less restrictive filters
                 query = (
                     f"{self.base_url}/Products?$filter="
                     f"Collection/Name eq 'SENTINEL-2' "
+                    f"and contains(Name,'MSIL2A') "
                     f"and OData.CSC.Intersects(area=geography'SRID=4326;{footprint}') "
-                    f"and ContentDate/Start gt {start_str} "
-                    f"and ContentDate/Start lt {end_str} "
+                    f"and ContentDate/Start ge '{start_str}' "  # Changed gt to ge (greater or equal)
+                    f"and ContentDate/Start le '{end_str}' "    # Changed lt to le (less or equal)
                     f"and Attributes/OData.CSC.DoubleAttribute/any(att:att/Name eq 'cloudCover' "
-                    f"and att/Value lt {max_cloud_percentage})"
-                    f"&$expand=Attributes"
+                    f"and att/Value le {max_cloud_percentage})"
+                    f"&$orderby=ContentDate/Start desc"
                 )
+                
+                logger.debug(f"Query URL: {query}")  # Add this line to debug the query
                 
                 response = requests.get(
                     query,
@@ -109,9 +126,12 @@ class MoroccoSentinelDownloader:
                 
                 if response.status_code == 200:
                     products = response.json().get('value', [])
-                    # Print a sample product to debug
-                    if products:
-                        logger.debug(f"Sample product structure: {json.dumps(products[0], indent=2)}")
+                    logger.debug(f"Raw API response: {response.text}")  # Add this line for debugging
+                    
+                    if not products:
+                        logger.warning(f"No products found for region {region} in date range")
+                        return []
+                    
                     logger.info(f"Found {len(products)} products")
                     return products
                 else:
@@ -122,7 +142,6 @@ class MoroccoSentinelDownloader:
                     wait_time *= (attempt + 1)
                     logger.warning(f"Search error, retrying in {wait_time} seconds... ({attempt + 1}/{max_attempts})")
                     time.sleep(wait_time)
-                    # Refresh token before retry
                     self.get_token()
                 else:
                     logger.error(f"Failed after {max_attempts} attempts: {str(e)}")
@@ -214,6 +233,8 @@ class MoroccoSentinelDownloader:
                 # Get download URL
                 download_url = f"{self.download_base_url}/Products({product_id})/$value"
                 
+                logger.info(f"Downloading product with bands B02(Blue), B03(Green), B04(Red), B08(NIR) at 10m resolution")
+                
                 # Start download with streaming
                 with requests.get(download_url, headers=self.headers, stream=True) as r:
                     r.raise_for_status()
@@ -226,7 +247,7 @@ class MoroccoSentinelDownloader:
                             total=total_size,
                             unit='iB',
                             unit_scale=True,
-                            desc=product_title
+                            desc=f"{product_title} (10m - B02,B03,B04,B08)"
                         ) as pbar:
                             for chunk in r.iter_content(chunk_size=8192):
                                 size = f.write(chunk)
